@@ -41,7 +41,7 @@ __global__ void sumMatrixOnGPU2D(float* MatA, float* MatB, float* MatC, int nx, 
 __global__ void sumMatrixOnGPUMix(float* MatA, float* MatB, float* MatC, int nx, int ny)
 {
 	unsigned int ix = threadIdx.x + blockIdx.x * blockDim.x;
-	unsigned int iy = blockDim.y;
+	unsigned int iy = blockIdx.y;
 	unsigned int idx = iy * nx + ix;
 	if (ix < nx && iy < ny) {
 		MatC[idx] = MatA[idx] + MatB[idx];
@@ -50,6 +50,11 @@ __global__ void sumMatrixOnGPUMix(float* MatA, float* MatB, float* MatC, int nx,
 
 int main()
 {
+
+	int iDev = 0;
+	cudaDeviceProp iProp;
+	cudaGetDeviceProperties(&iProp, iDev);
+
 	int nx = 1 << 14;
 	int ny = 1 << 14;
 	int nxy = nx * ny;
@@ -78,7 +83,6 @@ int main()
 	cudaMemcpy((void*)d_MatA, (void*)h_a, nBytes, cudaMemcpyHostToDevice);
 	cudaMemcpy((void*)d_MatB, (void*)h_b, nBytes, cudaMemcpyHostToDevice);
 
-
 	cudaEvent_t start, stop;
 	float elapsedTime = 0.f;
 	cudaEventCreate(&start);
@@ -94,15 +98,15 @@ int main()
 	sumMatrixOnGPU2D << < numBlocks, threadsPerBlock >> > (d_MatA, d_MatB, d_MatC, nx, ny);
 
 #else
-	int dimx = 1024;
+	int dimx = 512;
 	dim3 threadsPerBlock(dimx);
 	dim3 numBlocks((nx + dimx - 1) / threadsPerBlock.x, ny);
 	sumMatrixOnGPUMix<<<numBlocks, threadsPerBlock >>>(d_MatA, d_MatB, d_MatC, nx, ny);
 #endif
 
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&elapsedTime, start, stop);
+	cudaError_t error = cudaEventRecord(stop, 0);
+	error = cudaEventSynchronize(stop);
+	error = cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("sumMatrixOnGPU<<<(%d %d),(%d %d)>>> time speed:%f ms\n", numBlocks.x, numBlocks.y, threadsPerBlock.x, threadsPerBlock.y,  elapsedTime);
 
 	cudaMemcpy(gpuRef, d_MatC, nBytes, cudaMemcpyDeviceToHost);
