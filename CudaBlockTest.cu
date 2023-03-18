@@ -5,7 +5,9 @@
 #include <winsock.h>
 #include <time.h>
 
-#define Grid2DBlock2D
+//#define Grid2DBlock2D
+//#define Grid2DBlock1D
+#define Grid2DTRANSPOSE
 
 void initialFloat(float* ip, int size) {
 	for (int i = 0; i < size; i++) {
@@ -37,6 +39,25 @@ __global__ void sumMatrixOnGPU2D(float* MatA, float* MatB, float* MatC, int nx, 
 		MatC[idx] = MatA[idx] + MatB[idx];
 	}
 }
+
+__global__ void transposeDiagonalRow(float* MatA, float* MatC, int nx, int ny)
+{
+	unsigned int ix = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int iy = threadIdx.y + blockIdx.y * blockDim.y;
+	if (ix < nx && iy < ny) {
+		MatC[ix * ny + iy] = MatA[iy * nx + ix];
+	}
+}
+
+__global__ void transposeDiagonalCol(float* MatA, float* MatC, int nx, int ny)
+{
+	unsigned int ix = threadIdx.x + blockIdx.x * blockDim.x;
+	unsigned int iy = threadIdx.y + blockIdx.y * blockDim.y;
+	if (ix < nx && iy < ny) {
+		MatC[iy * nx + ix] = MatA[ix * ny + iy];
+	}
+}
+
 
 __global__ void sumMatrixOnGPUMix(float* MatA, float* MatB, float* MatC, int nx, int ny)
 {
@@ -96,12 +117,21 @@ int main()
 	dim3 threadsPerBlock(dimx, dimy);
 	dim3 numBlocks((nx + dimx - 1) / threadsPerBlock.x, (ny + dimy - 1) / threadsPerBlock.y);
 	sumMatrixOnGPU2D << < numBlocks, threadsPerBlock >> > (d_MatA, d_MatB, d_MatC, nx, ny);
-
-#else
-	int dimx = 512;
+#endif
+#ifdef Grid2DBlock1D
+	int dimx = 256;
 	dim3 threadsPerBlock(dimx);
 	dim3 numBlocks((nx + dimx - 1) / threadsPerBlock.x, ny);
 	sumMatrixOnGPUMix<<<numBlocks, threadsPerBlock >>>(d_MatA, d_MatB, d_MatC, nx, ny);
+#endif
+#ifdef Grid2DTRANSPOSE
+	int dimx = 32;
+	int dimy = 32;
+	dim3 threadsPerBlock(dimx, dimy);
+	dim3 numBlocks((nx + dimx - 1) / threadsPerBlock.x, (ny + dimy - 1) / threadsPerBlock.y);
+	//transposeDiagonalRow << < numBlocks, threadsPerBlock >> > (d_MatA, d_MatC, nx, ny);
+	transposeDiagonalCol << < numBlocks, threadsPerBlock >> > (d_MatA, d_MatC, nx, ny);
+
 #endif
 
 	cudaError_t error = cudaEventRecord(stop, 0);
