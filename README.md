@@ -8,4 +8,4 @@ three is two situation:
 
 2、blockDim.x=1024, blockDim.y=1
 
-result: situation 2 is faster in my computer(NVIDIA GeFore RTX 2070 super)
+result: situation 2 is faster in my computer(NVIDIA GeFore RTX 2060)
